@@ -1,34 +1,32 @@
 package com.example.puroparking
 
+import androidx.appcompat.widget.SearchView;
+
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.location.Address
 import android.location.Geocoder
 import android.location.Location
-import android.location.LocationRequest
-import android.os.Build
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
-import android.view.View
-import android.widget.EditText
-import android.widget.SearchView
+
 import android.widget.Toast
 import androidx.annotation.RawRes
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-
 import com.example.puroparking.PermissionUtils.PermissionDeniedDialog.Companion.newInstance
 import com.example.puroparking.PermissionUtils.isPermissionGranted
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
+import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.MarkerOptions;
 import com.example.puroparking.databinding.ActivityMapsBinding
-import com.google.android.gms.common.ConnectionResult
-import com.google.android.gms.common.api.GoogleApiClient
-import com.google.android.gms.location.LocationServices
 import com.google.android.gms.maps.model.*
+import com.google.maps.android.heatmaps.Gradient
 import com.google.maps.android.heatmaps.HeatmapTileProvider
 import org.json.JSONArray
 import org.json.JSONException
@@ -36,16 +34,14 @@ import java.io.IOException
 import java.util.*
 import kotlin.collections.ArrayList
 
+
+
 class MapsActivity : AppCompatActivity(), GoogleMap.OnMyLocationButtonClickListener,
     GoogleMap.OnMyLocationClickListener, ActivityCompat.OnRequestPermissionsResultCallback, OnMapReadyCallback {
     private var permissionDenied = false
     private lateinit var mMap: GoogleMap
     private lateinit var binding: ActivityMapsBinding
-
-    internal lateinit var mLastLocation: Location
-    internal var mCurrLocationMarker: Marker? = null
-    internal var mGoogleApiClient: GoogleApiClient? = null
-    internal lateinit var mLocationRequest: LocationRequest
+    lateinit var searchView: SearchView
 
 
 
@@ -55,14 +51,68 @@ class MapsActivity : AppCompatActivity(), GoogleMap.OnMyLocationButtonClickListe
         binding = ActivityMapsBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        searchView = findViewById(R.id.idSearchView)
+
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         val mapFragment = supportFragmentManager
             .findFragmentById(R.id.map) as SupportMapFragment
+
+
+        searchView.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
+            override fun onQueryTextSubmit(query: String): Boolean {
+                // on below line we are getting the
+                // location name from search view.
+                val location = searchView.query.toString()
+
+                // below line is to create a list of address
+                // where we will store the list of all address.
+                var addressList: List<Address>? = null
+
+                // checking if the entered location is null or not.
+                if (location != null || location == "") {
+                    // on below line we are creating and initializing a geo coder.
+                    val geocoder = Geocoder(this@MapsActivity)
+                    try {
+                        // on below line we are getting location from the
+                        // location name and adding that location to address list.
+                        addressList = geocoder.getFromLocationName(location, 1)
+                    } catch (e: IOException) {
+                        e.printStackTrace()
+                    }
+                    // on below line we are getting the location
+                    // from our list a first position.
+                    val address = addressList!![0]
+
+                    // on below line we are creating a variable for our location
+                    // where we will add our locations latitude and longitude.
+                    val latLng = LatLng(address.latitude, address.longitude)
+
+                    // on below line we are adding marker to that position.
+                    mMap!!.addMarker(MarkerOptions().position(latLng).title(location))
+
+                    // below line is to animate camera to that position.
+                    mMap!!.animateCamera(CameraUpdateFactory.newLatLngZoom(latLng, 15f))
+                }
+                return false
+            }
+
+            override fun onQueryTextChange(newText: String): Boolean {
+                return false
+            }
+        })
         mapFragment.getMapAsync(this)
+
     }
 
     private fun addHeatMap() {
         var latLngs: List<LatLng?>? = null
+
+        val colors = intArrayOf(
+            Color.rgb(102, 225, 0),  // green
+            Color.rgb(255, 0, 0) // red
+        )
+        val startPoints = floatArrayOf(0.2f, 1f)
+        val gradient = Gradient(colors, startPoints)
 
         // Get the data: latitude/longitude positions of police stations.
         try {
@@ -75,11 +125,18 @@ class MapsActivity : AppCompatActivity(), GoogleMap.OnMyLocationButtonClickListe
         // Create a heat map tile provider, passing it the latlngs of the police stations.
         val provider = HeatmapTileProvider.Builder()
             .data(latLngs)
+            .gradient(gradient)
             .build()
 
         // Add a tile overlay to the map, using the heat map tile provider.
         val overlay = mMap.addTileOverlay(TileOverlayOptions().tileProvider(provider))
-        //val overlay = map.addTileOverlay(TileOverlayOptions().tileProvider(provider))
+
+
+        // Add the tile overlay to the map.
+        val tileOverlay = mMap.addTileOverlay(
+            TileOverlayOptions()
+                .tileProvider(provider)
+        )
     }
 
     @Throws(JSONException::class)
@@ -103,6 +160,8 @@ class MapsActivity : AppCompatActivity(), GoogleMap.OnMyLocationButtonClickListe
         mMap = googleMap
         addHeatMap()
         enableMyLocation()
+        var santiago = LatLng(-33.45694,-70.64827)
+        mMap!!.animateCamera(CameraUpdateFactory.newLatLngZoom(santiago, 10f))
 
     }
 
